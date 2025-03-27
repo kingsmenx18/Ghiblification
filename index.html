@@ -1,0 +1,198 @@
+import React, { useState, useRef } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+const SuccinctGhiblification = () => {
+  const [originalImage, setOriginalImage] = useState(null);
+  const [ghiblifiedImage, setGhiblifiedImage] = useState(null);
+  const fileInputRef = useRef(null);
+  const canvasRef = useRef(null);
+
+  const handleImageUpload = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setOriginalImage(reader.result);
+        setGhiblifiedImage(null);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const applyGhibliFilter = () => {
+    if (!originalImage || !canvasRef.current) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    
+    img.onload = () => {
+      // Resize and prepare canvas
+      const maxWidth = 500;
+      const scaleFactor = maxWidth / img.width;
+      canvas.width = maxWidth;
+      canvas.height = img.height * scaleFactor;
+
+      // Draw original image
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      // Get image data
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+
+      // Ghibli-style color quantization and soft palette
+      const ghibliPalette = [
+        [244, 208, 163],   // Soft beige
+        [75, 83, 98],      // Muted blue-gray
+        [217, 130, 98],    // Warm terracotta
+        [62, 105, 132],    // Soft blue
+        [173, 139, 108]    // Warm brown
+      ];
+
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+
+        // Convert to grayscale first
+        const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+
+        // Find closest color in Ghibli palette
+        const closestColor = ghibliPalette.reduce((prev, curr) => {
+          const prevDist = Math.sqrt(
+            Math.pow(prev[0] - gray, 2) +
+            Math.pow(prev[1] - gray, 2) +
+            Math.pow(prev[2] - gray, 2)
+          );
+          const currDist = Math.sqrt(
+            Math.pow(curr[0] - gray, 2) +
+            Math.pow(curr[1] - gray, 2) +
+            Math.pow(curr[2] - gray, 2)
+          );
+          return prevDist < currDist ? prev : curr;
+        });
+
+        // Apply soft Ghibli color
+        data[i] = closestColor[0];     // R
+        data[i + 1] = closestColor[1]; // G
+        data[i + 2] = closestColor[2]; // B
+
+        // Add subtle texture
+        const noise = Math.random() * 15 - 7;
+        data[i] += noise;
+        data[i + 1] += noise;
+        data[i + 2] += noise;
+      }
+
+      // Put modified image data back
+      ctx.putImageData(imageData, 0, 0);
+
+      // Add hand-drawn line effect
+      ctx.globalCompositeOperation = 'overlay';
+      ctx.strokeStyle = 'rgba(100, 100, 100, 0.1)';
+      for (let x = 0; x < canvas.width; x += 5) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y < canvas.height; y += 5) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+
+      // Soft vignette effect
+      const gradient = ctx.createRadialGradient(
+        canvas.width / 2, canvas.height / 2, 0,
+        canvas.width / 2, canvas.height / 2, 
+        Math.max(canvas.width, canvas.height) / 1.5
+      );
+      gradient.addColorStop(0, 'rgba(0,0,0,0)');
+      gradient.addColorStop(1, 'rgba(0,0,0,0.1)');
+      
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Set the converted image as the Ghiblified result
+      setGhiblifiedImage(canvas.toDataURL());
+    };
+
+    img.src = originalImage;
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current.click();
+  };
+
+  return (
+    <Card className="w-full max-w-xl mx-auto bg-pink-50">
+      <CardHeader>
+        <CardTitle className="text-center text-[#8B0055] text-3xl font-bold">
+          SUCCINCT GHIBLIFICATION
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col items-center space-y-4">
+        {/* Hidden file input */}
+        <input 
+          type="file" 
+          ref={fileInputRef}
+          onChange={handleImageUpload}
+          accept="image/*"
+          className="hidden"
+        />
+
+        {/* Upload and Convert Buttons */}
+        <div className="flex space-x-4">
+          <Button 
+            onClick={triggerFileInput}
+            className="bg-pink-200 hover:bg-pink-300 text-pink-800"
+          >
+            Upload Image
+          </Button>
+          {originalImage && (
+            <Button 
+              onClick={applyGhibliFilter}
+              disabled={!originalImage}
+              className="bg-pink-300 hover:bg-pink-400 text-pink-900"
+            >
+              Ghiblify
+            </Button>
+          )}
+        </div>
+
+        {/* Hidden Canvas for Processing */}
+        <canvas ref={canvasRef} className="hidden" />
+
+        {/* Image Display Area */}
+        <div className="mt-4 flex space-x-4 flex-wrap justify-center">
+          {originalImage && (
+            <div className="flex flex-col items-center m-2">
+              <p className="mb-2 text-pink-700">Original</p>
+              <img 
+                src={originalImage} 
+                alt="Original" 
+                className="max-w-[300px] h-auto border rounded-lg shadow-md"
+              />
+            </div>
+          )}
+          {ghiblifiedImage && (
+            <div className="flex flex-col items-center m-2">
+              <p className="mb-2 text-pink-700">Ghiblified</p>
+              <img 
+                src={ghiblifiedImage} 
+                alt="Ghiblified" 
+                className="max-w-[300px] h-auto border rounded-lg shadow-md"
+              />
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default SuccinctGhiblification;
